@@ -19,7 +19,6 @@ app.get("/", (req,res) => {
   let page = Number(req.query.page) || 1
   if(url.indexOf('&submit=') != -1){
     page = 1;
-    console.log("masuk");
   }
   url = url.replace('&submit=', '')
   let limit = 3

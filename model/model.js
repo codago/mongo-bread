@@ -2,48 +2,24 @@ const mongodb = require('mongodb')
 const MongoClient = mongodb.MongoClient
 const url = 'mongodb://localhost:27017/mongobread';
 
-
-// MongoClient.connect(url, function(err, db) {
-//   const bread = db.collection('mongobreadcollection');
-//
-//   bread.find({}).toArray(function(err, docs) {
-//     console.log(docs);
-//   })
-// });
-
-
-//db.users.find().skip(pagesize*(n-1)).limit(pagesize)
-
-
-
-
 function getTableData(cb, userQuery, limit, offset) {
   let filterQuery = {}
-  let isFilter = false
 
   if(userQuery.checkboxstring && userQuery.datastring){
     filterQuery['datastring'] = userQuery.datastring;
-    isFilter = true;
   }
   if(userQuery.checkboxinteger && userQuery.datainteger){
     filterQuery['datainteger'] = userQuery.datainteger;
-    isFilter = true;
   }
   if(userQuery.checkboxfloat && userQuery.datafloat){
     filterQuery['datafloat'] = userQuery.datafloat;
-    isFilter = true;
   }
 
   if(userQuery.checkboxdate && userQuery.startdate && userQuery.enddate){
     filterQuery['datadate'] = {$gte: userQuery.startdate, $lte: userQuery.enddate} ;
-    isFilter = true;
   }
   if(userQuery.checkboxboolean && userQuery.databoolean){
     filterQuery['databoolean'] = userQuery.databoolean;
-    isFilter = true;
-  }
-  if(isFilter){
-    console.log(filterQuery);
   }
 
   MongoClient.connect(url, (error, db) => {
