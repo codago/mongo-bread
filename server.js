@@ -9,7 +9,7 @@ const bodyParser = require('body-parser');
 const mongodb = require('mongodb')
 
 const MongoClient = mongodb.MongoClient
-var url = 'mongodb://localhost:27017/breaddb';
+let url = 'mongodb://localhost:27017/breaddb';
 MongoClient.connect(url, function(err, db) {
   const bread = db.collection('bread');
 
@@ -30,65 +30,55 @@ MongoClient.connect(url, function(err, db) {
 
 
   app.get('/', function(req, res) {
-    var url = (req.url == "/") ? "/?page=1" : req.url;
-    var page = Number(req.query.page) || 1
+    let url = (req.url == "/") ? "/?page=1" : req.url;
+    let page = Number(req.query.page) || 1
     if(url.indexOf('&submit=') != -1){
       page = 1;
     }
     url = url.replace('&submit=', '')
     //filter
-    var filter = []
-    var isFilter = false;
-    var sql = 'SELECT count(*) AS total FROM bread'
-    if(req.query.check_id && req.query.id){
-      filter.push(`id = '${req.query.id}'`);
-      isFilter = true;
-    }
+    let filter = {}
+
     if(req.query.check_string && req.query.string){
-      filter.push(`stringdata = '${req.query.string}'`);
-      isFilter = true;
+      filter['string'] = req.query.string;
     }
     if(req.query.check_integer && req.query.integer){
-      filter.push(`integerdata = '${Number(req.query.integer)}'`);
-      isFilter = true;
+      filter['integer'] = Number(req.query.integer);
     }
     if(req.query.check_float && req.query.float){
-      filter.push(`floatdata = '${parseFloat(req.query.float)}'`);
-      isFilter = true;
+      filter['float']   = parseFloat(req.query.float);
     }
     if(req.query.check_date && req.query.startdate && req.query.enddate){
-      filter.push(`datedata BETWEEN '${req.query.startdate}' AND '${req.query.enddate}'`);
-      isFilter = true;
+      filter['date'] = {$gte: req.query.startdate, $lte: req.query.enddate}
     }
+
     if(req.query.check_boolean && req.query.boolean){
-      filter.push(`booleandata = '${JSON.parse(req.query.boolean) ? 'true' : 'false'}'`);
-      isFilter = true;
+      filter['boolean'] = JSON.parse(req.query.boolean);
     }
-    if(isFilter){
-      sql += ' WHERE ' + filter.join(' AND ')
-    }
+
+    console.log(filter);
 
     // pagination
-    var limit = 3
-    var offset = (page-1) * 3 //
-    var total = bread.count();
-    var pages = (total == 0) ? 1 : Math.ceil(total/limit);
-    sql = "SELECT * FROM bread";
-    if(isFilter){
-      sql += ' WHERE ' + filter.join(' AND ')
-    }
-    sql += ' ORDER BY id'
-    sql += ` LIMIT ${limit} OFFSET ${offset}`;
+    let limit = 3
+    let offset = (page-1) * 3
 
-    // select with pagination
-    bread.find({}).toArray(function(err, docs) {
-      if(err) {
-        console.error(err)
-        return res.send(err);
+
+    bread.find(filter).count((error, count) => {
+      if(error) {
+        console.error(error);
       }
-      console.log(docs[0].string);
-      res.render('list', {title: "BREAD",header: "BREAD", rows: docs, pagination:{page: page, limit: limit, offset: offset, pages: pages, total: total, url: url}, query: req.query});
-    });
+      let total = count
+      let pages = (total == 0) ? 1 : Math.ceil(total/limit);
+
+      bread.find(filter).skip(offset).limit(limit).toArray(function (err, docs) {
+        if (err) {
+          console.error(err);
+          return res.send(err);
+        }
+        console.log("test:",docs);
+        res.render('list', {title: "BREAD",header: "BREAD", rows: docs, pagination:{page: page, limit: limit, offset: offset, pages: pages, total: total, url: url}, query: req.query});
+      });
+    })
   });
 
 
@@ -100,7 +90,7 @@ MongoClient.connect(url, function(err, db) {
     let string = req.body.string
     let integer = parseInt(req.body.integer)
     let float = parseFloat(req.body.float)
-    let date = new Date(req.body.date)
+    let date = req.body.date
     let boolean = JSON.parse(req.body.boolean)
 
 
@@ -115,16 +105,16 @@ MongoClient.connect(url, function(err, db) {
   });
 
   app.get ('/edit/:id', function (req, res){
-    let id = req.params.id
-    client.query("SELECT * FROM bread WHERE id = $1", [id], (err, data)=>{
+    let id = req.params.id;
+    bread.findOne({"_id": new mongodb.ObjectID(id)}, function(err, data) {
+      console.log(data);
       if(err) {
         console.error(err)
         return res.send(err);
       }
-      if(data.rows.length > 0){
-        data.rows[0].datedata = moment(data.rows[0].datedata).format('YYYY-MM-DD');
-        console.log(data.rows[0].datedata);
-        res.render('edit', {title: 'edit', item: data.rows[0]});
+      if(data){
+        data.date = moment(data.date).format('YYYY-MM-DD');
+        res.render('edit', {title: 'edit', item: data});
       }else{
         res.send('Data Not Found');
       }
@@ -132,26 +122,34 @@ MongoClient.connect(url, function(err, db) {
   })
 
   app.post('/edit/:id', function(req,res) {
-    let id = Number(req.params.id)
+    let id = req.params.id
     let string = req.body.string
-    let integer = req.body.integer
-    let float = req.body.float
+    let integer = parseInt(req.body.integer)
+    let float = parseFloat(req.body.float)
     let date = req.body.date
-    let boolean = req.body.boolean
+    let boolean = JSON.parse(req.body.boolean)
 
-    client.query("UPDATE bread SET stringdata = $1, integerdata = $2, floatdata = $3 , datedata = $4, booleandata = $5 WHERE id=$6", [string, integer, float, date, boolean, id], function(err){
-      res.redirect('/');
-    });
-  });
+
+    bread.updateOne({"_id": new mongodb.ObjectID(id)}, {$set: {string:string, integer:integer, float:float, date:date, boolean:boolean}}, function(err, result){
+      if(err) {
+        console.error(err);
+        res.send(err);
+      } else {
+        console.log("Post Updated successfully");
+        res.redirect('/');
+      }
+    })
+  })
+
 
   app.get ('/delete/:id', function(req,res) {
-    var id = req.params.id
+    let id = req.params.id
     bread.deleteOne({"_id": new mongodb.ObjectID(id)}, (err,result) =>{
       if(err) {
         console.error(err)
         return res.send(err);
       }
-        res.redirect('/');
+      res.redirect('/');
     })
   })
 
