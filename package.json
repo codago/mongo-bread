@@ -17,7 +17,8 @@
   },
   "homepage": "https://github.com/codago/mongo-bread#readme",
   "dependencies": {
-    "express-generator": "^4.15.0"
+    "express-generator": "^4.15.0",
+    "mongodb": "^2.2.31"
   },
   "devDependencies": {
     "body-parser": "^1.18.1",
